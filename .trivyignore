@@ -1,0 +1,3 @@
+# Mỗi dòng là một ID (CVE-..., AVD-..., ...) kèm LÝ DO và NGÀY xem lại. Hiện không có ngoại lệ nào.
+# Ví dụ:
+#   CVE-2099-0001   # chỉ ảnh hưởng tính năng X mà dự án không dùng, xem lại 2027-01-01

@@ -1,0 +1,48 @@
+rules:
+  - id: skygate-obsolete-find-object-of-type
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      FindObjectOfType/FindObjectsOfType đã lỗi thời trong Unity 6 (chậm, thứ tự không xác định).
+      Dùng FindFirstObjectByType / FindAnyObjectByType / FindObjectsByType.
+    pattern-either:
+      - pattern: FindObjectOfType<$T>(...)
+      - pattern: FindObjectsOfType<$T>(...)
+      - pattern: Object.FindObjectOfType<$T>(...)
+      - pattern: Object.FindObjectsOfType<$T>(...)
+
+  - id: skygate-cleartext-http-url
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      URL http:// (không mã hoá). Android 9+ chặn cleartext theo mặc định và dữ liệu có thể bị nghe lén.
+      Dùng https://.
+    patterns:
+      - pattern-either:
+          - pattern: UnityWebRequest.Get("...")
+          - pattern: UnityWebRequest.Post("...", ...)
+          - pattern: Application.OpenURL("...")
+          - pattern: new Uri("...")
+      - pattern-regex: '"http://[^"]*"'
+
+  - id: skygate-secret-in-playerprefs
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      PlayerPrefs lưu dạng không mã hoá (XML/SharedPreferences) nên không phải nơi cất token/mật khẩu/khoá.
+      Dùng kho khoá của nền tảng, hoặc đừng lưu trên thiết bị.
+    patterns:
+      - pattern: PlayerPrefs.SetString($KEY, ...)
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: '(?i).*(token|passw|secret|apikey|api_key|credential|licen[cs]e).*'
+
+  - id: skygate-process-start
+    languages: [csharp]
+    severity: ERROR
+    message: >-
+      Process.Start trong code game: không chạy được trên Android/iOS và là đường tiêm lệnh nếu tham số đến từ
+      dữ liệu ngoài. Nếu là công cụ Editor, đặt dưới Scripts/Editor và thêm nosemgrep có giải thích.
+    pattern-either:
+      - pattern: Process.Start(...)
+      - pattern: System.Diagnostics.Process.Start(...)

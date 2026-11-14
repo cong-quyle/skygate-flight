@@ -1,0 +1,13 @@
+# Dùng bộ luật mặc định của gitleaks, chỉ thêm ngoại lệ có chủ đích.
+title = "SkyGate gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Thư mục sinh ra, không do con người viết"
+paths = [
+  '''SkyGate/Library/''',
+  '''SkyGate/Temp/''',
+  '''SkyGate/Logs/''',
+]

@@ -1,0 +1,7 @@
+# Các action trong workflow được ghim theo commit SHA; Dependabot mở PR khi có bản mới (kèm SHA mới).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

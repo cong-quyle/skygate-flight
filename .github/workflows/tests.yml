@@ -1,0 +1,127 @@
+name: tests
+
+# Unity EditMode + PlayMode (GameCI) kèm code coverage.
+# Cổng chặn: line coverage của assembly SkyGate.Core >= 95% (xem .github/scripts/check_coverage.py).
+# Yêu cầu secret: UNITY_LICENSE + UNITY_EMAIL + UNITY_PASSWORD (Personal) hoặc UNITY_SERIAL + UNITY_EMAIL + UNITY_PASSWORD (Pro).
+# Hướng dẫn: https://game-ci.com/docs/github/activation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_PATH: SkyGate
+  COVERAGE_MIN: "95"
+
+jobs:
+  coverage-script:
+    name: coverage gate script (self-test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -I -m unittest discover -s .github/scripts -v
+
+  unity:
+    name: unity ${{ matrix.testMode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # EditMode phủ gần như toàn bộ SkyGate.Core nên là nơi đặt cổng 95%.
+          - testMode: EditMode
+            gate: --assembly SkyGate.Core --min 95 --report SkyGate.Rendering
+          # PlayMode chỉ báo cáo (UI, input, driver, quality chạy ở đây); gộp vào cổng sau khi có thêm test.
+          - testMode: PlayMode
+            gate: --report SkyGate.Core --report SkyGate.Rendering
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read Unity version from ProjectVersion.txt
+        id: unity
+        run: |
+          f="$PROJECT_PATH/ProjectSettings/ProjectVersion.txt"
+          if [ ! -f "$f" ]; then
+            echo "::error::Thiếu $f. Mở dự án trong Unity Hub một lần rồi commit ProjectSettings/ (và các file .meta)."
+            exit 1
+          fi
+          v="$(sed -n 's/^m_EditorVersion: *//p' "$f" | head -n1 | tr -d '\r')"
+          if ! printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+[abfp][0-9]+$'; then
+            echo "::error::Không đọc được phiên bản Unity từ $f (nhận được: '$v')"
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Require Unity license secrets
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        run: |
+          if [ -z "$UNITY_LICENSE" ] && [ -z "$UNITY_SERIAL" ]; then
+            echo "::error::Chưa có secret UNITY_LICENSE (Personal) hoặc UNITY_SERIAL (Pro). Xem https://game-ci.com/docs/github/activation"
+            exit 1
+          fi
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PROJECT_PATH }}/Library
+          key: Library-${{ matrix.testMode }}-${{ steps.unity.outputs.version }}-${{ hashFiles('SkyGate/Packages/manifest.json') }}
+          restore-keys: |
+            Library-${{ matrix.testMode }}-${{ steps.unity.outputs.version }}-
+
+      - name: Run ${{ matrix.testMode }} tests
+        id: tests
+        uses: game-ci/unity-test-runner@fa6ced25861c16ef56187828c43f76d00df43a23 # v4.3.2
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ${{ env.PROJECT_PATH }}
+          unityVersion: ${{ steps.unity.outputs.version }}
+          testMode: ${{ matrix.testMode }}
+          artifactsPath: test-results-${{ matrix.testMode }}
+          coverageOptions: generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;assemblyFilters:+SkyGate.Core,+SkyGate.Rendering
+
+      - name: Make results readable
+        if: always()
+        env:
+          COVERAGE_PATH: ${{ steps.tests.outputs.coveragePath }}
+          ARTIFACTS_PATH: ${{ steps.tests.outputs.artifactsPath }}
+        run: sudo chown -R "$(id -u):$(id -g)" "$COVERAGE_PATH" "$ARTIFACTS_PATH" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: test-results-${{ matrix.testMode }}
+          path: ${{ steps.tests.outputs.artifactsPath }}
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: coverage-${{ matrix.testMode }}
+          path: ${{ steps.tests.outputs.coveragePath }}
+          if-no-files-found: warn
+
+      - name: Coverage gate
+        env:
+          COVERAGE_PATH: ${{ steps.tests.outputs.coveragePath }}
+          GATE_ARGS: ${{ matrix.gate }}
+        run: python3 -I .github/scripts/check_coverage.py "$COVERAGE_PATH" $GATE_ARGS

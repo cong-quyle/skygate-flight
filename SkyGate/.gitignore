@@ -1,0 +1,22 @@
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+*.csproj
+*.sln
+*.apk
+*.aab
+.vs/
+.vscode/
+
+# Logo/thuong hieu do nguoi dung tu cung cap
+/Assets/SkyGate/Art/Private/
+
+# Kết quả coverage/test sinh khi chạy cục bộ
+/CodeCoverage/
+/TestResults*/
+/artifacts/
